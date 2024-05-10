@@ -4,11 +4,39 @@ import 'package:flutter/services.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal_windows.dart';
 
 class PrintBluetoothThermal {
-  static const MethodChannel _channel =
-      const MethodChannel('groons.web.app/print');
+  static const MethodChannel _channel = MethodChannel('groons.web.app/print');
+
+  // Private constructor
+  PrintBluetoothThermal._privateConstructor();
+
+  // Static private instance of the class
+  static final PrintBluetoothThermal _instance =
+      PrintBluetoothThermal._privateConstructor();
+
+  // Public static getter for the instance
+  static PrintBluetoothThermal get instance => _instance;
+
+  // Flag to check if initialized
+  bool _isInitialized = false;
+
+  // Public method to initialize Bluetooth connection
+  Future<void> initializeBluetooth() async {
+    if (!_isInitialized) {
+      try {
+        final String result =
+            await _channel.invokeMethod('initializeBluetooth');
+        print(result); // Should print "Bluetooth central manager initialized"
+        _isInitialized = true;
+      } on PlatformException catch (e) {
+        print("Failed to initialize Bluetooth: '${e.message}'.");
+      }
+    }
+  }
 
   ///Check if it is allowed on Android 12 access to Bluetooth onwards
-  static Future<bool> get isPermissionBluetoothGranted async {
+  Future<bool> isPermissionBluetoothGranted() async {
+    // Ensure initialization before proceeding
+    await _ensureInitialized();
     //bluetooth esta disponible?
     bool bluetoothState = false;
     if (Platform.isWindows) {
@@ -21,8 +49,15 @@ class PrintBluetoothThermal {
     return bluetoothState;
   }
 
+  // Add _ensureInitialized method to wrap calls that require Bluetooth to be initialized
+  Future<void> _ensureInitialized() async {
+    if (!_isInitialized) {
+      await initializeBluetooth();
+    }
+  }
+
   ///returns true if bluetooth is on
-  static Future<bool> get bluetoothEnabled async {
+  Future<bool> bluetoothEnabled() async {
     //bluetooth esta prendido?
     bool bluetoothState = false;
     if (Platform.isWindows) {
@@ -35,7 +70,8 @@ class PrintBluetoothThermal {
   }
 
   ///Android: Return all paired bluetooth on the device IOS: Return nearby bluetooths
-  static Future<List<BluetoothInfo>> get pairedBluetooths async {
+  Future<List<BluetoothInfo>> pairedBluetooths() async {
+    await _ensureInitialized();
     //bluetooth vinculados
     List<BluetoothInfo> items = [];
     if (Platform.isWindows) {
@@ -55,7 +91,8 @@ class PrintBluetoothThermal {
   }
 
   //returns true if you are currently connected to the printer
-  static Future<bool> get connectionStatus async {
+  Future<bool> get connectionStatus async {
+    await _ensureInitialized();
     //estado de la conexion eon el bluetooth
     if (Platform.isWindows) {
       return PrintBluetoothThermalWindows.connectionStatus;
@@ -67,7 +104,8 @@ class PrintBluetoothThermal {
   }
 
   ///send connection to ticket printer and wait true if it was successful, the mac address of the printer's bluetooth must be sent
-  static Future<bool> connect({required String macPrinterAddress}) async {
+  Future<bool> connect({required String macPrinterAddress}) async {
+    await _ensureInitialized();
     //conectar impresora bluetooth
     bool result = false;
 
@@ -81,7 +119,8 @@ class PrintBluetoothThermal {
   }
 
   ///send bytes to print, esc_pos_utils_plus package must be used, returns true if successful
-  static Future<bool> writeBytes(List<int> bytes) async {
+  Future<bool> writeBytes(List<int> bytes) async {
+    await _ensureInitialized();
     //enviar bytes a la impresora
     if (Platform.isWindows) {
       return await PrintBluetoothThermalWindows.writeBytes(bytes: bytes);
@@ -91,7 +130,9 @@ class PrintBluetoothThermal {
   }
 
   ///Strings are sent to be printed by the PrintTextSize class can print from size 1 (50%) to size 5 (400%)
-  static Future<bool> writeString({required PrintTextSize printText}) async {
+  Future<bool> writeString({required PrintTextSize printText}) async {
+    await _ensureInitialized();
+
     ///EN: you must send the enter \n to print the complete phrase, it is not sent automatically because you may want to add several
     /// horizontal values ​​of different size
     ///ES: se debe enviar el enter \n para que imprima la frase completa, no se envia automatico por que tal vez quiera agregar varios
@@ -110,7 +151,7 @@ class PrintBluetoothThermal {
   }
 
   ///gets the android version where it is running, returns String
-  static Future<String> get platformVersion async {
+  Future<String> get platformVersion async {
     String version = "";
     if (Platform.isAndroid || Platform.isIOS) {
       version = await _channel.invokeMethod('getPlatformVersion');
@@ -119,7 +160,7 @@ class PrintBluetoothThermal {
   }
 
   ///get the percentage of the battery returns int
-  static Future<int> get batteryLevel async {
+  Future<int> get batteryLevel async {
     int result = 0;
 
     if (Platform.isWindows) {
@@ -130,7 +171,8 @@ class PrintBluetoothThermal {
   }
 
   ///disconnect print
-  static Future<bool> get disconnect async {
+  Future<bool> get disconnect async {
+    await _ensureInitialized();
     if (Platform.isWindows) {
       return await PrintBluetoothThermalWindows.disconnect();
     }

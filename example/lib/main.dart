@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:print_bluetooth_thermal/post_code.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
-import 'package:image/image.dart' as img;
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal_windows.dart';
 
 void main() {
@@ -22,7 +21,12 @@ class _MyAppState extends State<MyApp> {
   String _msj = '';
   bool connected = false;
   List<BluetoothInfo> items = [];
-  List<String> _options = ["permission bluetooth granted", "bluetooth enabled", "connection status", "update info"];
+  List<String> _options = [
+    "permission bluetooth granted",
+    "bluetooth enabled",
+    "connection status",
+    "update info"
+  ];
 
   String _selectSize = "2";
   final _txtText = TextEditingController(text: "Hello developer");
@@ -31,10 +35,12 @@ class _MyAppState extends State<MyApp> {
 
   String optionprinttype = "58 mm";
   List<String> options = ["58 mm", "80 mm"];
+  late PrintBluetoothThermal printBluetoothThermal;
 
   @override
   void initState() {
     super.initState();
+    printBluetoothThermal = PrintBluetoothThermal.instance;
     initPlatformState();
   }
 
@@ -55,20 +61,22 @@ class _MyAppState extends State<MyApp> {
               onSelected: (Object select) async {
                 String sel = select as String;
                 if (sel == "permission bluetooth granted") {
-                  bool status = await PrintBluetoothThermal.isPermissionBluetoothGranted;
+                  bool status = await printBluetoothThermal
+                      .isPermissionBluetoothGranted();
                   setState(() {
                     _info = "permission bluetooth granted: $status";
                   });
                   //open setting permision if not granted permision
                 } else if (sel == "bluetooth enabled") {
-                  bool state = await PrintBluetoothThermal.bluetoothEnabled;
+                  bool state = await printBluetoothThermal.bluetoothEnabled();
                   setState(() {
                     _info = "Bluetooth enabled: $state";
                   });
                 } else if (sel == "update info") {
                   initPlatformState();
                 } else if (sel == "connection status") {
-                  final bool result = await PrintBluetoothThermal.connectionStatus;
+                  final bool result =
+                      await printBluetoothThermal.connectionStatus;
                   connected = result;
                   setState(() {
                     _info = "connection status: $result";
@@ -129,7 +137,9 @@ class _MyAppState extends State<MyApp> {
                             child: SizedBox(
                               width: 25,
                               height: 25,
-                              child: CircularProgressIndicator.adaptive(strokeWidth: 1, backgroundColor: Colors.white),
+                              child: CircularProgressIndicator.adaptive(
+                                  strokeWidth: 1,
+                                  backgroundColor: Colors.white),
                             ),
                           ),
                           SizedBox(width: 5),
@@ -162,7 +172,8 @@ class _MyAppState extends State<MyApp> {
                             this.connect(mac);
                           },
                           title: Text('Name: ${items[index].name}'),
-                          subtitle: Text("macAddress: ${items[index].macAdress}"),
+                          subtitle:
+                              Text("macAddress: ${items[index].macAdress}"),
                         );
                       },
                     )),
@@ -174,7 +185,8 @@ class _MyAppState extends State<MyApp> {
                     color: Colors.grey.withOpacity(0.3),
                   ),
                   child: Column(children: [
-                    Text("Text size without the library without external packets, print images still it should not use a library"),
+                    Text(
+                        "Text size without the library without external packets, print images still it should not use a library"),
                     SizedBox(height: 10),
                     Row(
                       children: [
@@ -191,7 +203,8 @@ class _MyAppState extends State<MyApp> {
                         DropdownButton<String>(
                           hint: Text('Size'),
                           value: _selectSize,
-                          items: <String>['1', '2', '3', '4', '5'].map((String value) {
+                          items: <String>['1', '2', '3', '4', '5']
+                              .map((String value) {
                             return DropdownMenuItem<String>(
                               value: value,
                               child: new Text(value),
@@ -225,9 +238,9 @@ class _MyAppState extends State<MyApp> {
     int porcentbatery = 0;
     // Platform messages may fail, so we use a try/catch PlatformException.
     try {
-      platformVersion = await PrintBluetoothThermal.platformVersion;
+      platformVersion = await printBluetoothThermal.platformVersion;
       //print("patformversion: $platformVersion");
-      porcentbatery = await PrintBluetoothThermal.batteryLevel;
+      porcentbatery = await printBluetoothThermal.batteryLevel;
     } on PlatformException {
       platformVersion = 'Failed to get platform version.';
     }
@@ -237,7 +250,7 @@ class _MyAppState extends State<MyApp> {
     // setState to update our non-existent appearance.
     if (!mounted) return;
 
-    final bool result = await PrintBluetoothThermal.bluetoothEnabled;
+    final bool result = await printBluetoothThermal.bluetoothEnabled();
     print("bluetooth enabled: $result");
     if (result) {
       _msj = "Bluetooth enabled, please search and connect";
@@ -256,7 +269,8 @@ class _MyAppState extends State<MyApp> {
       _msjprogress = "Wait";
       items = [];
     });
-    final List<BluetoothInfo> listResult = await PrintBluetoothThermal.pairedBluetooths;
+    final List<BluetoothInfo> listResult =
+        await printBluetoothThermal.pairedBluetooths();
 
     /*await Future.forEach(listResult, (BluetoothInfo bluetooth) {
       String name = bluetooth.name;
@@ -268,7 +282,8 @@ class _MyAppState extends State<MyApp> {
     });
 
     if (listResult.length == 0) {
-      _msj = "There are no bluetoohs linked, go to settings and link the printer";
+      _msj =
+          "There are no bluetoohs linked, go to settings and link the printer";
     } else {
       _msj = "Touch an item in the list to connect";
     }
@@ -284,7 +299,8 @@ class _MyAppState extends State<MyApp> {
       _msjprogress = "Connecting...";
       connected = false;
     });
-    final bool result = await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+    final bool result =
+        await printBluetoothThermal.connect(macPrinterAddress: mac);
     print("state conected $result");
     if (result) connected = true;
     setState(() {
@@ -293,7 +309,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> disconnect() async {
-    final bool status = await PrintBluetoothThermal.disconnect;
+    final bool status = await printBluetoothThermal.disconnect;
     setState(() {
       connected = false;
     });
@@ -306,7 +322,7 @@ class _MyAppState extends State<MyApp> {
       return;
     }*/
 
-    bool conexionStatus = await PrintBluetoothThermal.connectionStatus;
+    bool conexionStatus = await printBluetoothThermal.connectionStatus;
     //print("connection status: $conexionStatus");
     if (conexionStatus) {
       bool result = false;
@@ -315,7 +331,7 @@ class _MyAppState extends State<MyApp> {
         result = await PrintBluetoothThermalWindows.writeBytes(bytes: ticket);
       } else {
         List<int> ticket = await testTicket();
-        result = await PrintBluetoothThermal.writeBytes(ticket);
+        result = await printBluetoothThermal.writeBytes(ticket);
       }
       print("print test result:  $result");
     } else {
@@ -328,15 +344,18 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> printString() async {
-    bool conexionStatus = await PrintBluetoothThermal.connectionStatus;
+    bool conexionStatus = await printBluetoothThermal.connectionStatus;
     if (conexionStatus) {
       String enter = '\n';
-      await PrintBluetoothThermal.writeBytes(enter.codeUnits);
+      await printBluetoothThermal.writeBytes(enter.codeUnits);
       //size of 1-5
       String text = "Hello";
-      await PrintBluetoothThermal.writeString(printText: PrintTextSize(size: 1, text: text));
-      await PrintBluetoothThermal.writeString(printText: PrintTextSize(size: 2, text: text + " size 2"));
-      await PrintBluetoothThermal.writeString(printText: PrintTextSize(size: 3, text: text + " size 3"));
+      await printBluetoothThermal.writeString(
+          printText: PrintTextSize(size: 1, text: text));
+      await printBluetoothThermal.writeString(
+          printText: PrintTextSize(size: 2, text: text + " size 2"));
+      await printBluetoothThermal.writeString(
+          printText: PrintTextSize(size: 3, text: text + " size 3"));
     } else {
       //desconectado
       print("desconectado bluetooth $conexionStatus");
@@ -347,34 +366,31 @@ class _MyAppState extends State<MyApp> {
     List<int> bytes = [];
     // Using default profile
     final profile = await CapabilityProfile.load();
-    final generator = Generator(optionprinttype == "58 mm" ? PaperSize.mm58 : PaperSize.mm80, profile);
+    final generator = Generator(
+        optionprinttype == "58 mm" ? PaperSize.mm58 : PaperSize.mm80, profile);
     //bytes += generator.setGlobalFont(PosFontType.fontA);
     bytes += generator.reset();
-
-    final ByteData data = await rootBundle.load('assets/mylogo.jpg');
-    final Uint8List bytesImg = data.buffer.asUint8List();
-    img.Image? image = img.decodeImage(bytesImg);
-
-    if (Platform.isIOS) {
-      // Resizes the image to half its original size and reduces the quality to 80%
-      final resizedImage = img.copyResize(image!, width: image.width ~/ 1.3, height: image.height ~/ 1.3, interpolation: img.Interpolation.nearest);
-      final bytesimg = Uint8List.fromList(img.encodeJpg(resizedImage));
-      //image = img.decodeImage(bytesimg);
-    }
 
     //Using `ESC *`
     //bytes += generator.image(image!);
 
-    bytes += generator.text('Regular: aA bB cC dD eE fF gG hH iI jJ kK lL mM nN oO pP qQ rR sS tT uU vV wW xX yY zZ');
-    bytes += generator.text('Special 1: ñÑ àÀ èÈ éÉ üÜ çÇ ôÔ', styles: PosStyles(codeTable: 'CP1252'));
-    bytes += generator.text('Special 2: blåbærgrød', styles: PosStyles(codeTable: 'CP1252'));
+    bytes += generator.text(
+        'Regular: aA bB cC dD eE fF gG hH iI jJ kK lL mM nN oO pP qQ rR sS tT uU vV wW xX yY zZ');
+    bytes += generator.text('Special 1: ñÑ àÀ èÈ éÉ üÜ çÇ ôÔ',
+        styles: PosStyles(codeTable: 'CP1252'));
+    bytes += generator.text('Special 2: blåbærgrød',
+        styles: PosStyles(codeTable: 'CP1252'));
 
     bytes += generator.text('Bold text', styles: PosStyles(bold: true));
     bytes += generator.text('Reverse text', styles: PosStyles(reverse: true));
-    bytes += generator.text('Underlined text', styles: PosStyles(underline: true), linesAfter: 1);
-    bytes += generator.text('Align left', styles: PosStyles(align: PosAlign.left));
-    bytes += generator.text('Align center', styles: PosStyles(align: PosAlign.center));
-    bytes += generator.text('Align right', styles: PosStyles(align: PosAlign.right), linesAfter: 1);
+    bytes += generator.text('Underlined text',
+        styles: PosStyles(underline: true), linesAfter: 1);
+    bytes +=
+        generator.text('Align left', styles: PosStyles(align: PosAlign.left));
+    bytes += generator.text('Align center',
+        styles: PosStyles(align: PosAlign.center));
+    bytes += generator.text('Align right',
+        styles: PosStyles(align: PosAlign.right), linesAfter: 1);
 
     bytes += generator.row([
       PosColumn(
@@ -430,7 +446,8 @@ class _MyAppState extends State<MyApp> {
   Future<List<int>> testWindows() async {
     List<int> bytes = [];
 
-    bytes += PostCode.text(text: "Size compressed", fontSize: FontSize.compressed);
+    bytes +=
+        PostCode.text(text: "Size compressed", fontSize: FontSize.compressed);
     bytes += PostCode.text(text: "Size normal", fontSize: FontSize.normal);
     bytes += PostCode.text(text: "Bold", bold: true);
     bytes += PostCode.text(text: "Inverse", inverse: true);
@@ -439,9 +456,15 @@ class _MyAppState extends State<MyApp> {
     bytes += PostCode.enter();
 
     //List of rows
-    bytes += PostCode.row(texts: ["PRODUCT", "VALUE"], proportions: [60, 40], fontSize: FontSize.compressed);
+    bytes += PostCode.row(
+        texts: ["PRODUCT", "VALUE"],
+        proportions: [60, 40],
+        fontSize: FontSize.compressed);
     for (int i = 0; i < 3; i++) {
-      bytes += PostCode.row(texts: ["Item $i", "$i,00"], proportions: [60, 40], fontSize: FontSize.compressed);
+      bytes += PostCode.row(
+          texts: ["Item $i", "$i,00"],
+          proportions: [60, 40],
+          fontSize: FontSize.compressed);
     }
 
     bytes += PostCode.line();
@@ -456,10 +479,11 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> printWithoutPackage() async {
     //impresion sin paquete solo de PrintBluetoothTermal
-    bool connectionStatus = await PrintBluetoothThermal.connectionStatus;
+    bool connectionStatus = await printBluetoothThermal.connectionStatus;
     if (connectionStatus) {
       String text = _txtText.text.toString() + "\n";
-      bool result = await PrintBluetoothThermal.writeString(printText: PrintTextSize(size: int.parse(_selectSize), text: text));
+      bool result = await printBluetoothThermal.writeString(
+          printText: PrintTextSize(size: int.parse(_selectSize), text: text));
       print("status print result: $result");
       setState(() {
         _msj = "printed status: $result";
