@@ -31,7 +31,7 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
     // En el método init, inicializa el gestor central con un delegado
     //para solicitar el permiso del bluetooth
     if (self.centralManager == nil) {
-        self.centralManager = CBCentralManager(delegate: self, queue: nil)
+        self.centralManager = CBCentralManager(delegate: self, queue: nil, options: ["CBCentralManagerOptionShowPowerAlertKey": 0])
     }
 
     //para iniciar la variable result
