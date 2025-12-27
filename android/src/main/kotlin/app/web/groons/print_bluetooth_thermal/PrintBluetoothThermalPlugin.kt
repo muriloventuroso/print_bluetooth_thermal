@@ -24,11 +24,13 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import kotlin.math.min
 
 
 private const val TAG = "====> print: "
 private var outputStream: OutputStream? = null
 private lateinit var mac: String
+private const val WRITE_CHUNK_SIZE = 16 * 1024
 
 /** PrintTestPlugin */
 class PrintBluetoothThermalPlugin: FlutterPlugin, MethodCallHandler {
@@ -103,7 +105,7 @@ class PrintBluetoothThermalPlugin: FlutterPlugin, MethodCallHandler {
       if(outputStream != null) {
         try{
           outputStream?.run {
-            write(" ".toByteArray())
+            writeInChunks(" ".toByteArray())
             result.success(true)
             //Log.d(TAG, "paso yes coexion ")
           }
@@ -153,7 +155,7 @@ class PrintBluetoothThermalPlugin: FlutterPlugin, MethodCallHandler {
         GlobalScope.launch(Dispatchers.IO) {
           try{
             outputStream?.run {
-              write(bytes)
+              writeInChunks(bytes)
               withContext(Dispatchers.Main) {
                 result.success(true)
               }
@@ -205,7 +207,7 @@ class PrintBluetoothThermalPlugin: FlutterPlugin, MethodCallHandler {
             write(setBytes.cancelar_chino)
             write(setBytes.caracteres_escape)
             write(setBytes.size[size])
-            write(texto.toByteArray(charset("ISO-8859-1")))
+            writeInChunks(texto.toByteArray(charset("ISO-8859-1")))
             result.success(true)
           }
         }catch (e: Exception){
@@ -226,7 +228,7 @@ class PrintBluetoothThermalPlugin: FlutterPlugin, MethodCallHandler {
       if(outputStream != null) {
         try{
           outputStream?.run {
-            write(bytes)
+            writeInChunks(bytes)
             result.success(true)
           }
         }catch (e: Exception){
@@ -316,6 +318,15 @@ class PrintBluetoothThermalPlugin: FlutterPlugin, MethodCallHandler {
 
   private fun disconncet(){
     outputStream?.close()
+  }
+
+  private fun OutputStream.writeInChunks(data: ByteArray) {
+    var offset = 0
+    while (offset < data.size) {
+      val count = min(WRITE_CHUNK_SIZE, data.size - offset)
+      write(data, offset, count)
+      offset += count
+    }
   }
 
   private fun dispositivosVinculados():List<String>{
