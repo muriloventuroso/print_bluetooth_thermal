@@ -150,22 +150,28 @@ class PrintBluetoothThermalPlugin: FlutterPlugin, MethodCallHandler {
         //Log.d(TAG, "foreah: ${it}")
       }
       if(outputStream != null) {
-        try{
-          outputStream?.run {
-            write(bytes)
-            result.success(true)
-            //Log.d(TAG, "result print: ${bytes}")
+        GlobalScope.launch(Dispatchers.IO) {
+          try{
+            outputStream?.run {
+              write(bytes)
+              withContext(Dispatchers.Main) {
+                result.success(true)
+              }
+              //Log.d(TAG, "result print: ${bytes}")
+            }
+          }catch (e: Exception){
+            outputStream = null
+            //mensajeToast("Dispositivo fue desconectado, reconecte")
+            Log.d(TAG, "error state print: ${e.message}")
+            withContext(Dispatchers.Main) {
+              result.success(false)
+            }
+            /*var ex:String = e.message.toString()
+            if(ex=="Broken pipe"){
+              Log.d(TAG, "Dispositivo fue desconectado reconecte: ")
+              mensajeToast("Dispositivo fue desconectado, reconecte")
+            }*/
           }
-        }catch (e: Exception){
-          result.success(false)
-          outputStream = null
-          //mensajeToast("Dispositivo fue desconectado, reconecte")
-          Log.d(TAG, "error state print: ${e.message}")
-          /*var ex:String = e.message.toString()
-          if(ex=="Broken pipe"){
-            Log.d(TAG, "Dispositivo fue desconectado reconecte: ")
-            mensajeToast("Dispositivo fue desconectado, reconecte")
-          }*/
         }
       }else{
         result.success(false)
