@@ -168,11 +168,14 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
         writeQueue = stride(from: 0, to: data.count, by: chunkSize).map { offset in
             data.subdata(in: offset..<min(offset + chunkSize, data.count))
         }
-        // Si la característica no admite escritura sin confirmación, cada
-        // fragmento debe esperar su respuesta antes de enviar el siguiente.
-        pendingWriteType = characteristic.properties.contains(.writeWithoutResponse)
-            ? .withoutResponse
-            : .withResponse
+        // Se prefiere escritura con confirmación (ACK real del periférico por
+        // cada fragmento) cuando la característica la admite — es lo que
+        // hacía el código original. .withoutResponse solo se usa cuando no
+        // queda otra opción, porque su única señal de flujo es la cola local
+        // de CoreBluetooth, no si la impresora ya procesó el fragmento.
+        pendingWriteType = characteristic.properties.contains(.write)
+            ? .withResponse
+            : .withoutResponse
 
         if writeQueue.isEmpty {
             result(true)

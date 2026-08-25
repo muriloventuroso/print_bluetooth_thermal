@@ -1,3 +1,6 @@
+## [1.1.9]
+1. Fixed writeBytes on iOS defaulting to .withoutResponse whenever the characteristic supported it, even when .write (with response) was also available. Restored the original preference for .withResponse when supported — real per-chunk acknowledgment from the printer, instead of only CoreBluetooth's local queue state — which matters for large payloads like image-mode receipts.
+
 ## [1.1.8]
 1. iOS BLE writeBytes: added a 20ms pause between chunks (like the rest of the app's transports) on top of the previous backpressure fix. canSendWriteWithoutResponse/didWriteValueFor only protect the local CoreBluetooth queue, not the printer's own print buffer, so a long burst (image-mode receipts have dozens of chunks) could still outrun the printer and desync a graphics command mid-transfer, making it fall back to printing the raw image bytes as text.
 
