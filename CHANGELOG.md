@@ -1,3 +1,6 @@
+## [1.1.8]
+1. iOS BLE writeBytes: added a 20ms pause between chunks (like the rest of the app's transports) on top of the previous backpressure fix. canSendWriteWithoutResponse/didWriteValueFor only protect the local CoreBluetooth queue, not the printer's own print buffer, so a long burst (image-mode receipts have dozens of chunks) could still outrun the printer and desync a graphics command mid-transfer, making it fall back to printing the raw image bytes as text.
+
 ## [1.1.7]
 1. Fixed iOS BLE writeBytes sending every chunk back-to-back with no backpressure, which overran the printer's input buffer and printed random characters. Chunks now wait for canSendWriteWithoutResponse/peripheralIsReady when the characteristic only supports writeWithoutResponse, or for didWriteValueFor when it supports write with response.
 

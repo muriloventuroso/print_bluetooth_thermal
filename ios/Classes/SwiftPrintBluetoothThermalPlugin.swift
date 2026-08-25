@@ -247,12 +247,24 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
       }
   }
 
+    // Pausa entre fragmentos, igual a kPrinterChunkPause en el lado Dart:
+    // canSendWriteWithoutResponse/didWriteValueFor solo evitan que la cola
+    // local de CoreBluetooth (o su cola GATT) se desborde, pero no dicen nada
+    // del buffer físico de impresión de la impresora, que en modo imagen es
+    // el cuello de botella real. Sin esta pausa, una ráfaga larga de
+    // fragmentos (un recibo con imagen tiene decenas) puede quedar dentro de
+    // la capacidad local y salir toda de golpe, desbordando la impresora a
+    // mitad de un comando gráfico — la impresora sale del modo raster y
+    // empieza a imprimir el resto de los bytes de la imagen como si fueran
+    // texto, lo que se ve como caracteres aleatorios ("?", "=", letras
+    // sueltas) en vez de una imagen corrupta.
+    static let chunkPause: TimeInterval = 0.02
+
     // Envía el siguiente fragmento pendiente respetando el flujo de BLE:
     // con .withoutResponse solo si el peripheral tiene hueco de envío
     // (si no, se reanuda en peripheralIsReady(toSendWriteWithoutResponse:));
     // con .withResponse se envía uno y se espera didWriteValueFor antes del
-    // siguiente. Mandar todos los fragmentos seguidos sin esto es lo que
-    // saturaba el buffer de la impresora y hacía salir caracteres aleatorios.
+    // siguiente. En ambos casos se espacía con chunkPause antes de continuar.
     func sendNextChunk(peripheral: CBPeripheral, characteristic: CBCharacteristic) {
         guard !writeQueue.isEmpty else {
             self.flutterResult?(true)
@@ -265,7 +277,9 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
         peripheral.writeValue(chunk, for: characteristic, type: pendingWriteType)
         if pendingWriteType == .withoutResponse {
             // CoreBluetooth no llama a didWriteValueFor para .withoutResponse.
-            sendNextChunk(peripheral: peripheral, characteristic: characteristic)
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.chunkPause) { [weak self] in
+                self?.sendNextChunk(peripheral: peripheral, characteristic: characteristic)
+            }
         }
         // Para .withResponse, el siguiente fragmento se envía desde didWriteValueFor.
     }
@@ -369,7 +383,9 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
            return
         }
         if pendingWriteType == .withResponse && !writeQueue.isEmpty {
-            sendNextChunk(peripheral: peripheral, characteristic: characteristic)
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.chunkPause) { [weak self] in
+                self?.sendNextChunk(peripheral: peripheral, characteristic: characteristic)
+            }
             return
         }
          self.flutterResult?(true)
