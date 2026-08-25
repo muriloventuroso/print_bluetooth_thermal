@@ -12,8 +12,15 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
 
 
     var flutterResult: FlutterResult? //para el resul de flutter
-    var bytes: [UInt8]? //variable para almacenar los bytes que llegan
     var stringprint = ""; //variable para almacenar los string que llegan
+
+    // Fragmentos de escritura BLE pendientes y el tipo con el que deben
+    // enviarse. Un envío no puede lanzar todos los fragmentos seguidos: sin
+    // esperar la confirmación (.withResponse) o el hueco de envío
+    // (.withoutResponse) el buffer de entrada de la impresora se satura y el
+    // recibo sale como caracteres aleatorios.
+    var writeQueue: [Data] = []
+    var pendingWriteType: CBCharacteristicWriteType = .withoutResponse
 
     // En el método init, inicializa el gestor central con un delegado
     //para solicitar el permiso del bluetooth
@@ -143,48 +150,37 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
           result(false)
       }
     }else if call.method == "writebytes"{
-        guard let arguments = call.arguments as? [Int] else {
+        guard let listbytes = call.arguments as? [Int] else {
           // Manejar el caso en que los argumentos no son del tipo esperado
+          result(false)
           return
         }
-        //let bytes = arguments
-        self.bytes = arguments.map { UInt8($0) } //No se esta usando
-
-        if let characteristic = targetCharacteristic {
-            // Utiliza la variable characteristic desempaquetada aquí
-            //print("bytes count: \(self.bytes?.count)")
-            guard let listbytes = call.arguments as? [UInt8] else {
-                // Manejar el caso en que los argumentos no son del tipo esperado
-                return
-            }
-            //self.connectedPeripheral?.writeValue(Data(listbytes), for: characteristic, type: .withoutResponse) //.withResponse, .withoutResponse
-
-            //Imprimir bloques de 150 bytes en la impresora para que no se sature
-            let data: Data = Data(listbytes) // Datos que deseas imprimir
-            let chunkSize = 150 // Tamaño de cada fragmento en bytes
-
-            var offset = 0
-            while offset < data.count {
-                let chunkRange = offset..<min(offset + chunkSize, data.count)
-                let chunkData = data.subdata(in: chunkRange)
-                //print("chunkData count: \(chunkData.count)")
-                // Envía el fragmento para imprimir utilizando la característica deseada
-
-                var writeType = CBCharacteristicWriteType.withoutResponse;
-                if characteristic.properties.contains(.write) {
-                   writeType = CBCharacteristicWriteType.withResponse;
-                }
-
-                 self.connectedPeripheral?.writeValue(chunkData, for: characteristic, type: writeType)
-                   
-                offset += chunkSize
-            }
-            //la respuesta va en peripheral
-            //self.flutterResult?(true)
-        } else {
+        guard let characteristic = targetCharacteristic, let peripheral = connectedPeripheral else {
             print("No hay caracteristica para imprimir")
             result(false)
+            return
         }
+
+        //Imprimir bloques de 150 bytes en la impresora para que no se sature
+        let data = Data(listbytes.map { UInt8(truncatingIfNeeded: $0) })
+        let chunkSize = 150 // Tamaño de cada fragmento en bytes
+
+        writeQueue = stride(from: 0, to: data.count, by: chunkSize).map { offset in
+            data.subdata(in: offset..<min(offset + chunkSize, data.count))
+        }
+        // Si la característica no admite escritura sin confirmación, cada
+        // fragmento debe esperar su respuesta antes de enviar el siguiente.
+        pendingWriteType = characteristic.properties.contains(.writeWithoutResponse)
+            ? .withoutResponse
+            : .withResponse
+
+        if writeQueue.isEmpty {
+            result(true)
+            return
+        }
+
+        //la respuesta va en peripheral, ver sendNextChunk/didWriteValueFor/peripheralIsReady
+        sendNextChunk(peripheral: peripheral, characteristic: characteristic)
 
       } else if call.method == "printstring"{
         self.stringprint = call.arguments as! String
@@ -243,6 +239,7 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
         } else if call.method == "disconnect"{
         centralManager?.cancelPeripheralConnection(connectedPeripheral)
         targetCharacteristic = nil
+        writeQueue.removeAll()
         //la respuesta va en centralManager segunda funcion
         //result(true)
       } else {
@@ -250,7 +247,30 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
       }
   }
 
-  
+    // Envía el siguiente fragmento pendiente respetando el flujo de BLE:
+    // con .withoutResponse solo si el peripheral tiene hueco de envío
+    // (si no, se reanuda en peripheralIsReady(toSendWriteWithoutResponse:));
+    // con .withResponse se envía uno y se espera didWriteValueFor antes del
+    // siguiente. Mandar todos los fragmentos seguidos sin esto es lo que
+    // saturaba el buffer de la impresora y hacía salir caracteres aleatorios.
+    func sendNextChunk(peripheral: CBPeripheral, characteristic: CBCharacteristic) {
+        guard !writeQueue.isEmpty else {
+            self.flutterResult?(true)
+            return
+        }
+        if pendingWriteType == .withoutResponse && !peripheral.canSendWriteWithoutResponse {
+            return
+        }
+        let chunk = writeQueue.removeFirst()
+        peripheral.writeValue(chunk, for: characteristic, type: pendingWriteType)
+        if pendingWriteType == .withoutResponse {
+            // CoreBluetooth no llama a didWriteValueFor para .withoutResponse.
+            sendNextChunk(peripheral: peripheral, characteristic: characteristic)
+        }
+        // Para .withResponse, el siguiente fragmento se envía desde didWriteValueFor.
+    }
+
+
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         //print("Discovered \(peripheral.name ?? "Unknown") at \(RSSI) dBm")
         if let deviceName = peripheral.name {
@@ -344,14 +364,26 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
     public func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         if let error = error {
            print("Error al escribir en la característica: \(error.localizedDescription)")
+            writeQueue.removeAll()
             self.flutterResult?(false)
            return
+        }
+        if pendingWriteType == .withResponse && !writeQueue.isEmpty {
+            sendNextChunk(peripheral: peripheral, characteristic: characteristic)
+            return
         }
          self.flutterResult?(true)
         print("Escritura exitosa en la característica: \(characteristic.uuid)")
         // Aquí puedes realizar operaciones adicionales con la respuesta de la escritura
     }
-    
+
+    // Se llama cuando vuelve a haber hueco para escrituras .withoutResponse;
+    // reanuda el envío de la cola pausada en sendNextChunk.
+    public func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
+        guard let characteristic = targetCharacteristic else { return }
+        sendNextChunk(peripheral: peripheral, characteristic: characteristic)
+    }
+
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
             case .poweredOn:
